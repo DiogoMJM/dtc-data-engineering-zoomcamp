@@ -8,13 +8,14 @@ terraform {
 }
 
 provider "google" {
-  project = "dtc-de-course-dmjm26"
-  region = "europe-west1"
+  credentials = file(var.credentials)
+  project = var.project
+  region = var.region
 }
 
 resource "google_storage_bucket" "dtc-bucket" {
-  name          = "dtc-de-course-dmjm26-bucket"
-  location      = "EU"
+  name          = var.gcs_bucket_name
+  location      = var.location
   force_destroy = true
 
   lifecycle_rule {
@@ -28,6 +29,6 @@ resource "google_storage_bucket" "dtc-bucket" {
 }
 
 resource "google_bigquery_dataset" "dtc-dataset" {
-  dataset_id = "dtc_de_course_dmjm_dataset"
-  location = "EU"
+  dataset_id = var.bq_dataset_name
+  location = var.location
 }
