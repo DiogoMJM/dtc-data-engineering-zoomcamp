@@ -26,3 +26,8 @@ resource "google_storage_bucket" "dtc-bucket" {
     }
   }
 }
+
+resource "google_bigquery_dataset" "dtc-dataset" {
+  dataset_id = "dtc_de_course_dmjm_dataset"
+  location = "EU"
+}
