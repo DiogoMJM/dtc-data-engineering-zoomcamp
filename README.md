@@ -55,3 +55,19 @@ WHERE 1=1
 	AND z1."Zone" = 'East Harlem North' 
 ORDER BY 2 DESC 
 LIMIT 1
+
+# 02-workflow-orchestration homework
+__Question 3__ \
+SELECT COUNT(*) 
+FROM `dtc-de-course-dmjm26.kestra_dataset.yellow_tripdata` 
+WHERE tpep_pickup_datetime > '2019-12-31' AND tpep_pickup_datetime < '2021-01-01'
+
+__Question 4__ \
+SELECT COUNT(*) 
+FROM `dtc-de-course-dmjm26.kestra_dataset.green_tripdata` 
+WHERE lpep_pickup_datetime > '2019-12-31' AND lpep_pickup_datetime < '2021-01-01'
+
+__Question 5__ \
+SELECT COUNT(*) 
+FROM `dtc-de-course-dmjm26.kestra_dataset.yellow_tripdata` 
+WHERE tpep_pickup_datetime >= '2021-03-01' AND tpep_pickup_datetime < '2021-04-01'
