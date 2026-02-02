@@ -35,6 +35,8 @@ services:
       retries: 10
 
   kestra:
+    env_file: 
+      - .env_encoded
     image: kestra/kestra:v1.1
     pull_policy: always
     # Note that this setup with a root user is intended for development purpose.
@@ -67,6 +69,11 @@ services:
               basePath: "/app/storage"
           queue:
             type: postgres
+          ai:
+            type: gemini
+            gemini:
+              model-name: gemini-2.5-flash
+              api-key: ${GEMINI_API_KEY}
           tasks:
             tmpDir:
               path: /tmp/kestra-wd/tmp
