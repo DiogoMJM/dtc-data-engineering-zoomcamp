@@ -71,3 +71,66 @@ __Question 5__ \
 SELECT COUNT(*) 
 FROM `dtc-de-course-dmjm26.kestra_dataset.yellow_tripdata` 
 WHERE tpep_pickup_datetime >= '2021-03-01' AND tpep_pickup_datetime < '2021-04-01'
+
+# 03-data-warehouse
+__Question 1__ \
+SELECT
+  COUNT(*)
+FROM `kestra_dataset.yellow_tripdata_2024`
+-- 20 332 093
+
+__Question 2__ \
+-- Materialized Table \
+-- 155,12 MB \
+SELECT
+  COUNT(DISTINCT PULocationID)
+FROM `kestra_dataset.yellow_tripdata_2024`;
+
+-- External Table \
+-- 0 MB \
+SELECT
+  COUNT(DISTINCT PULocationID)
+FROM `kestra_dataset.yellow_tripdata_ext_2024`;
+
+__Question 3__ \
+SELECT
+  PULocationID
+FROM `kestra_dataset.yellow_tripdata_2024`;
+
+SELECT
+  PULocationID
+  ,DOLocationID
+FROM `kestra_dataset.yellow_tripdata_2024`;
+
+__Question 4__ \
+SELECT
+  COUNT(*)
+FROM `kestra_dataset.yellow_tripdata_2024`
+WHERE 1=1
+  AND fare_amount = 0;
+
+__Question 5__ \
+CREATE OR REPLACE TABLE `kestra_dataset.optimized_yellow_tripdata_2024`
+PARTITION BY DATE(tpep_dropoff_datetime)
+CLUSTER BY VendorID AS
+SELECT * FROM `kestra_dataset.yellow_tripdata_ext_2024`;
+
+__Question 6__ \
+-- Not materialized Table \
+SELECT
+  COUNT(DISTINCT VendorID)
+FROM `kestra_dataset.yellow_tripdata_2024`
+WHERE 1=1
+  AND tpep_dropoff_datetime BETWEEN '2024-03-01' AND '2024-03-15';
+
+-- Materialized Table \
+SELECT
+  COUNT(DISTINCT VendorID)
+FROM `kestra_dataset.optimized_yellow_tripdata_2024`
+WHERE 1=1
+  AND tpep_dropoff_datetime BETWEEN '2024-03-01' AND '2024-03-15';
+
+__Question 9__ \
+SELECT
+  COUNT(*)
+FROM `kestra_dataset.yellow_tripdata_2024`;
