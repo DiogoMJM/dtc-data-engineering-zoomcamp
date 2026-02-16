@@ -134,3 +134,35 @@ __Question 9__ \
 SELECT
   COUNT(*)
 FROM `kestra_dataset.yellow_tripdata_2024`;
+
+# 04-analytics-engineering
+__Question 3__ \
+SELECT
+  COUNT(*)
+FROM `dbt_prod.fct_monthly_zone_revenue`
+WHERE 1=1
+  AND revenue_month <= '2019-01-01'
+  OR revenue_month >= '2020-12-31'
+
+__Question 4__ \
+SELECT
+  pickup_zone
+  ,SUM(revenue_monthly_total_amount)
+FROM `dbt_prod.fct_monthly_zone_revenue`
+WHERE 1=1
+  AND revenue_month BETWEEN '2020-01-01' AND '2020-12-31'
+  AND service_type = 'Green'
+GROUP BY
+  pickup_zone
+ORDER BY SUM(revenue_monthly_total_amount) DESC
+LIMIT 1
+
+__Question 5__ \
+SELECT
+  SUM(total_monthly_trips)
+FROM `dbt_prod.fct_monthly_zone_revenue`
+WHERE 1=1
+  AND revenue_month = '2019-10-01'
+  AND service_type = 'Green'
+
+__Question 6__ \
