@@ -166,3 +166,33 @@ WHERE 1=1
   AND service_type = 'Green'
 
 __Question 6__ \
+dbt \
+stg_fhv_tripdata.sql \
+with tripdata as 
+(
+  select *
+  from {{ source('raw_data','fhv_tripdata') }}
+  where dispatching_base_num is not null
+)
+
+select
+    -- identifiers
+    {{ dbt_utils.generate_surrogate_key(['dispatching_base_num', 'pickup_datetime']) }} as tripid,
+    cast(dispatching_base_num as string) as dispatching_base_num,
+    cast(pulocationid as integer) as pickup_location_id,
+    cast(dolocationid as integer) as dropoff_location_id,
+    
+    -- timestamps
+    cast(pickup_datetime as timestamp) as pickup_datetime,
+    cast(dropoff_datetime as timestamp) as dropoff_datetime,
+    
+    -- trip info
+    sr_flag,
+    affiliated_base_number as affiliated_base_num
+
+from tripdata
+
+BigQuery\
+SELECT
+  COUNT(*)
+FROM dbt_prod.stg_fhv_tripdata
