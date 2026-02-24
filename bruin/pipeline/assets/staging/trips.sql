@@ -5,21 +5,14 @@
 # - Quality checks (built-ins): https://getbruin.com/docs/bruin/quality/available_checks
 # - Custom checks: https://getbruin.com/docs/bruin/quality/custom
 
-# TODO: Set the asset name (recommended: staging.trips).
-name: TODO_SET_ASSET_NAME
-# TODO: Set platform type.
-# Docs: https://getbruin.com/docs/bruin/assets/sql
-# suggested type: duckdb.sql
-type: TODO
+# Staging layer: Clean, deduplicate, and enrich raw trip data
+name: staging.trips
+type: duckdb.sql
 
-# TODO: Declare dependencies so `bruin run ... --downstream` and lineage work.
-# Examples:
-# depends:
-#   - ingestion.trips
-#   - ingestion.payment_lookup
+# Dependencies: raw trips and payment lookup reference table
 depends:
-  - TODO_DEP_1
-  - TODO_DEP_2
+  - ingestion.trips
+  - ingestion.payment_lookup
 
 # TODO: Choose time-based incremental processing if the dataset is naturally time-windowed.
 # - This module expects you to use `time_interval` to reprocess only the requested window.
@@ -47,55 +40,153 @@ materialization:
   # - delete+insert (refresh partitions based on incremental_key values)
   # - merge (upsert based on primary key)
   # - time_interval (refresh rows within a time window)
-  strategy: TODO
-  # TODO: set incremental_key to your event time column (DATE or TIMESTAMP).
-  incremental_key: TODO_SET_INCREMENTAL_KEY
-  # TODO: choose `date` vs `timestamp` based on the incremental_key type.
-  time_granularity: TODO_SET_GRANULARITY
+  strategy: time_interval
+  # Incremental key: process data by pickup time window
+  incremental_key: pickup_datetime
+  # Time granularity: timestamp (supports minute-level reprocessing if needed)
+  time_granularity: timestamp
 
-# TODO: Define output columns, mark primary keys, and add a few checks.
+# Output columns with quality checks
 columns:
-  - name: TODO_pk1
-    type: TODO
-    description: TODO
+  - name: trip_id
+    type: string
+    description: "Unique trip identifier (VendorID + pickup_datetime hash)"
     primary_key: true
     nullable: false
     checks:
       - name: not_null
-  - name: TODO_metric
-    type: TODO
-    description: TODO
+      - name: unique
+  - name: VendorID
+    type: integer
+    description: "Taxi vendor ID"
+    checks:
+      - name: not_null
+  - name: pickup_datetime
+    type: timestamp
+    description: "Trip pickup datetime (incremental key)"
+    checks:
+      - name: not_null
+  - name: dropoff_datetime
+    type: timestamp
+    description: "Trip dropoff datetime"
+    checks:
+      - name: not_null
+  - name: passenger_count
+    type: integer
+    description: "Number of passengers"
+    checks:
+      - name: not_null
+  - name: trip_distance
+    type: float
+    description: "Trip distance in miles"
     checks:
       - name: non_negative
+  - name: fare_amount
+    type: float
+    description: "Fare amount"
+    checks:
+      - name: non_negative
+  - name: total_amount
+    type: float
+    description: "Total trip amount"
+    checks:
+      - name: non_negative
+  - name: payment_type
+    type: integer
+    description: "Payment type ID"
+    checks:
+      - name: not_null
+  - name: payment_type_name
+    type: string
+    description: "Payment type name (from lookup table)"
+    checks:
+      - name: not_null
+  - name: extracted_at
+    type: timestamp
+    description: "Timestamp when data was extracted from source"
 
-# TODO: Add one custom check that validates a staging invariant (uniqueness, ranges, etc.)
-# Docs: https://getbruin.com/docs/bruin/quality/custom
+# Custom check: Validate that dropoff_datetime >= pickup_datetime
 custom_checks:
-  - name: TODO_custom_check_name
-    description: TODO
+  - name: valid_trip_times
+    description: "Ensure dropoff time is after or equal to pickup time for all trips"
     query: |
-      -- TODO: return a single scalar (COUNT(*), etc.) that should match `value`
-      SELECT 0
+      SELECT COUNT(*)
+      FROM staging.trips
+      WHERE dropoff_datetime < pickup_datetime
     value: 0
 
 @bruin */
 
--- TODO: Write the staging SELECT query.
+-- Staging layer: Clean, deduplicate, and enrich raw trip data
 --
--- Purpose of staging:
--- - Clean and normalize schema from ingestion
--- - Deduplicate records (important if ingestion uses append strategy)
--- - Enrich with lookup tables (JOINs)
--- - Filter invalid rows (null PKs, negative values, etc.)
---
--- Why filter by {{ start_datetime }} / {{ end_datetime }}?
--- When using `time_interval` strategy, Bruin:
---   1. DELETES rows where `incremental_key` falls within the run's time window
---   2. INSERTS the result of your query
--- Therefore, your query MUST filter to the same time window so only that subset is inserted.
--- If you don't filter, you'll insert ALL data but only delete the window's data = duplicates.
+-- Steps:
+-- 1. Deduplicate using ROW_NUMBER (partition by trip attributes, order by extracted_at DESC)
+-- 2. Filter to valid records (non-null PKs, positive amounts, valid trip times)
+-- 3. Enrich with payment type lookup
+-- 4. Filter to the processing time window (required for time_interval strategy)
 
-SELECT *
-FROM ingestion.trips
-WHERE pickup_datetime >= '{{ start_datetime }}'
-  AND pickup_datetime < '{{ end_datetime }}'
+WITH deduplicated AS (
+  SELECT
+    t.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY VendorID, pickup_datetime, dropoff_datetime, PULocationID, DOLocationID
+      ORDER BY extracted_at DESC
+    ) AS rn
+  FROM ingestion.trips t
+  WHERE pickup_datetime >= '{{ start_datetime }}'
+    AND pickup_datetime < '{{ end_datetime }}'
+),
+filtered AS (
+  SELECT
+    d.VendorID,
+    d.pickup_datetime,
+    d.dropoff_datetime,
+    d.passenger_count,
+    d.trip_distance,
+    d.RatecodeID,
+    d.store_and_fwd_flag,
+    d.PULocationID,
+    d.DOLocationID,
+    d.payment_type,
+    d.fare_amount,
+    d.extra,
+    d.mta_tax,
+    d.tip_amount,
+    d.tolls_amount,
+    d.total_amount,
+    d.extracted_at
+  FROM deduplicated d
+  WHERE rn = 1
+    -- Filter invalid records
+    AND d.pickup_datetime IS NOT NULL
+    AND d.dropoff_datetime IS NOT NULL
+    AND d.payment_type IS NOT NULL
+    AND d.passenger_count IS NOT NULL
+    AND d.fare_amount >= 0
+    AND d.total_amount >= 0
+    AND d.trip_distance >= 0
+)
+SELECT
+  CONCAT(f.VendorID, '_', f.pickup_datetime, '_', f.PULocationID) AS trip_id,
+  f.VendorID,
+  f.pickup_datetime,
+  f.dropoff_datetime,
+  f.passenger_count,
+  f.trip_distance,
+  f.RatecodeID,
+  f.store_and_fwd_flag,
+  f.PULocationID,
+  f.DOLocationID,
+  f.payment_type,
+  pl.payment_type_name,
+  f.fare_amount,
+  f.extra,
+  f.mta_tax,
+  f.tip_amount,
+  f.tolls_amount,
+  f.total_amount,
+  f.extracted_at
+FROM filtered f
+LEFT JOIN ingestion.payment_lookup pl
+  ON f.payment_type = pl.payment_type_id
+ORDER BY f.pickup_datetime DESC
