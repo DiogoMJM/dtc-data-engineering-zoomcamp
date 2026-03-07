@@ -1,4 +1,3 @@
-*.parquet
 */keys/*
 *.env*
 
@@ -256,3 +255,8 @@ terraform.rc
 # Uncomment the line below if you want to ignore planout files.
 # planout
 .bruin.yml
+
+# Add spark parquet related files
+*.parquet
+*.crc
+*_SUCCESS
