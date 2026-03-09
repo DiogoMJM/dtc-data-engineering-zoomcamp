@@ -196,3 +196,7 @@ BigQuery\
 SELECT
   COUNT(*)
 FROM dbt_prod.stg_fhv_tripdata
+
+# 06-batch
+__All Questions__
+homework\06-batch\hw_06.ipynb
